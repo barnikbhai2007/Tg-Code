@@ -18,14 +18,49 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # your personal Telegram numeric ID
 # with people you trust to verify screenshots correctly.
 ADMIN_APPROVAL_TOKEN = os.getenv("ADMIN_APPROVAL_TOKEN")
 
+# --- Code sources ---
+# Each site that sends you sign-in codes gets a name (shown to users)
+# and a sender address (used to filter IMAP so the bot never reads
+# mail from anywhere else). Add more by extending this list — no code
+# changes needed elsewhere.
+#
+# Configure via .env like:
+#   CODE_SOURCE_1_NAME=Website 1
+#   CODE_SOURCE_1_SENDER=noreply@site1.com
+#   CODE_SOURCE_2_NAME=Website 2
+#   CODE_SOURCE_2_SENDER=noreply@site2.com
+# Add CODE_SOURCE_3_*, _4_*, etc. the same way if you add more sites later.
+
+def _load_code_sources() -> list[dict]:
+    sources = []
+    i = 1
+    while True:
+        name = os.getenv(f"CODE_SOURCE_{i}_NAME")
+        sender = os.getenv(f"CODE_SOURCE_{i}_SENDER")
+        if not name and not sender:
+            break
+        if name and sender:
+            sources.append({"name": name, "sender": sender})
+        i += 1
+
+    if sources:
+        return sources
+
+    # Backward compatibility: if someone's still on the old single
+    # CODE_SENDER_FILTER variable from before multi-site support,
+    # keep it working as a single source rather than breaking silently.
+    legacy_sender = os.getenv("CODE_SENDER_FILTER")
+    if legacy_sender:
+        return [{"name": "Code", "sender": legacy_sender}]
+
+    return []
+
+CODE_SOURCES = _load_code_sources()
+
 # --- Email (Gmail via IMAP) ---
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")  # 16-char Google App Password, NOT your real password
 IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
-
-# Only pull codes from mail matching this sender, so the bot can't be
-# tricked into relaying an unrelated email that happens to land in the inbox.
-CODE_SENDER_FILTER = os.getenv("CODE_SENDER_FILTER")  # e.g. "noreply@yoursite.com"
 
 # --- Subscription ---
 SUBSCRIPTION_DAYS = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
@@ -55,4 +90,10 @@ def validate_config():
         raise RuntimeError(
             "ADMIN_APPROVAL_TOKEN is too short. Use a long random string "
             "(e.g. generate one with: python3 -c \"import secrets; print(secrets.token_urlsafe(24))\")"
+        )
+    if not CODE_SOURCES:
+        raise RuntimeError(
+            "No code sources configured. Set CODE_SOURCE_1_NAME and "
+            "CODE_SOURCE_1_SENDER in .env (add CODE_SOURCE_2_*, etc. for "
+            "more sites)."
         )

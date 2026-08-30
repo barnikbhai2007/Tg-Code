@@ -152,3 +152,30 @@ def get_expiring_soon(hours: int = 24) -> list[sqlite3.Row]:
               AND subscription_expires_at > datetime('now')
               AND subscription_expires_at <= ?
         """, (cutoff.isoformat(),)).fetchall()
+
+
+def get_all_subscribers() -> list[sqlite3.Row]:
+    """
+    Every user who has EVER had a subscription (active or expired),
+    newest activity first. Users who only ever hit /start without
+    subscribing are excluded, since they're not really "subscribers".
+    """
+    with get_db() as conn:
+        return conn.execute("""
+            SELECT * FROM users
+            WHERE subscription_expires_at IS NOT NULL
+            ORDER BY subscription_expires_at DESC
+        """).fetchall()
+
+
+def cancel_subscription(telegram_id: int):
+    """
+    Immediately expires a user's subscription by setting expiry to now.
+    Kept as "expire now" rather than deleting the row, so the user's
+    history (they WERE a subscriber) isn't lost.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET subscription_expires_at = datetime('now') WHERE telegram_id = ?",
+            (telegram_id,),
+        )
